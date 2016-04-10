@@ -10,7 +10,7 @@ data class CPU(val registers: Registers = Registers(),
 }
 
 data class Registers(val vX : Array<Int> = Array(16, {0}),
-                     var i : Short = 0,
+                     var i : Int = 0,
                      var pc : Int = 0x200,
                      var delayTimer : Int = 0,
                      var soundTimer : Int = 0)

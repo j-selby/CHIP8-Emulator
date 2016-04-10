@@ -120,7 +120,7 @@ class Interpreter(private val chip : Chip8) {
 
                     //println("v$x = $newVal")
 
-                    cpu.registers.vX[x] = newVal
+                    cpu.registers.vX[x] = newVal and 0x00FF
                 }
                 InstructionType.CLS -> {
                     // Clear the screen
@@ -132,12 +132,12 @@ class Interpreter(private val chip : Chip8) {
 
                     //println("I = $newVal")
 
-                    cpu.registers.i = newVal.toShort()
+                    cpu.registers.i = newVal and 0x0FFF
                 }
                 InstructionType.SEVB -> {
                     // Skip next instruction if Vx = kk.
                     val x = inst.matcher.getArgument(instVal, 'x')
-                    val compareVal = inst.matcher.getArgument(instVal, 'k')
+                    val compareVal = inst.matcher.getArgument(instVal, 'k') and 0x00FF
 
                     //println("v$x ?= $compareVal")
 
@@ -167,7 +167,7 @@ class Interpreter(private val chip : Chip8) {
                     // Set Vx = Vx SHL 1.
                     val x = inst.matcher.getArgument(instVal, 'x')
                     cpu.registers.vX[0xF] = cpu.registers.vX[x] and 0x80
-                    cpu.registers.vX[x] = (cpu.registers.vX[x] shl 1) and 0xFF
+                    cpu.registers.vX[x] = cpu.registers.vX[x] shl 1
 
                     //println("v$x ?!= $compareVal")
 
@@ -176,7 +176,7 @@ class Interpreter(private val chip : Chip8) {
                     // Set Vx = Vx SHR 1.
                     val x = inst.matcher.getArgument(instVal, 'x')
                     cpu.registers.vX[0xF] = cpu.registers.vX[x] and 0x01
-                    cpu.registers.vX[x] = (cpu.registers.vX[x] shr 1) and 0xFF
+                    cpu.registers.vX[x] = cpu.registers.vX[x] shr 1
 
                     //println("v$x ?!= $compareVal")
 
@@ -184,7 +184,7 @@ class Interpreter(private val chip : Chip8) {
                 InstructionType.SNEB -> {
                     // Skip next instruction if Vx != kk.
                     val x = inst.matcher.getArgument(instVal, 'x')
-                    val compareVal = inst.matcher.getArgument(instVal, 'k')
+                    val compareVal = inst.matcher.getArgument(instVal, 'k') and 0x00FF
 
                     //println("v$x ?!= $compareVal")
 
@@ -202,15 +202,14 @@ class Interpreter(private val chip : Chip8) {
                     cpu.registers.vX[x] = cpu.registers.vX[y]
                 }
                 InstructionType.SUB -> {
-                    // Set Vx = Vy.
+                    // Set Vx = Vx - Vy, set VF = NOT borrow.
                     val x = inst.matcher.getArgument(instVal, 'x')
                     val y = inst.matcher.getArgument(instVal, 'y')
 
                     //println("v$x -= $vy, vF = borrow")
 
-                    val result = Math.abs(cpu.registers.vX[y] - cpu.registers.vX[x])
                     cpu.registers.vX[0xF] = if (cpu.registers.vX[x] > cpu.registers.vX[y]) 1 else 0
-                    cpu.registers.vX[x] = result
+                    cpu.registers.vX[x] = cpu.registers.vX[x] - cpu.registers.vX[y]
                 }
                 InstructionType.CALL -> {
                     // Call subroutine at nnn.
@@ -245,7 +244,7 @@ class Interpreter(private val chip : Chip8) {
                 InstructionType.RND -> {
                     // Set Vx = random byte AND kk.
                     val x = inst.matcher.getArgument(instVal, 'x')
-                    val andValue = inst.matcher.getArgument(instVal, 'k')
+                    val andValue = inst.matcher.getArgument(instVal, 'k') and 0x00FF
                     val randomVal = cpu.random.nextInt(255)
 
                     //println("Storing random value $randomVal AND $andValue in v$x")
@@ -257,7 +256,7 @@ class Interpreter(private val chip : Chip8) {
                     // Display n-byte sprite starting at memory location I at (Vx, Vy), set VF = collision.
                     val x = cpu.registers.vX[inst.matcher.getArgument(instVal, 'x')]
                     val y = cpu.registers.vX[inst.matcher.getArgument(instVal, 'y')]
-                    val size = inst.matcher.getArgument(instVal, 'n')
+                    val size = inst.matcher.getArgument(instVal, 'n') and 0x000F
 
                     //println("Draw of height $size at $x:$y")
 
@@ -273,6 +272,8 @@ class Interpreter(private val chip : Chip8) {
                     // Send off the request
                     cpu.registers.vX[0xF] = if (chip.postDrawRequest(DrawRequest(x, y, 8, size, array))) 1 else 0
 
+                    // Sleep a bit
+                    Thread.sleep(10)
                 }
                 InstructionType.LDS -> {
                     // Set I = location of (font) sprite for digit Vx.
@@ -280,7 +281,7 @@ class Interpreter(private val chip : Chip8) {
 
                     //println("LDS: $x")
 
-                    cpu.registers.i = (fontsStart + x * 5).toShort()
+                    cpu.registers.i = fontsStart + x * 5
                 }
                 InstructionType.ADDB -> {
                     // Set Vx = Vx + kk.
@@ -289,8 +290,16 @@ class Interpreter(private val chip : Chip8) {
 
                     //println("v$x += $newVal")
 
+                    cpu.registers.vX[x] += newVal and 0x00FF
+                }
 
-                    cpu.registers.vX[x] += newVal
+                InstructionType.SKP -> {
+                    // Skip next instruction if key with the value of Vx is pressed.
+                    val x = inst.matcher.getArgument(instVal, 'x')
+
+                    if (chip.keysPressed[cpu.registers.vX[x]]!!) {
+                        cpu.registers.pc += 2
+                    }
                 }
                 InstructionType.SKNP -> {
                     // Skip next instruction if key with the value of Vx is not pressed.
@@ -333,7 +342,7 @@ class Interpreter(private val chip : Chip8) {
                     // Set I = I + Vx.
                     val x = cpu.registers.vX[inst.matcher.getArgument(instVal, 'x')]
 
-                    cpu.registers.i = (cpu.registers.i.toInt() + x).toShort()
+                    cpu.registers.i = cpu.registers.i.toInt() + x
                 }
                 InstructionType.LDVD -> {
                     // Set Vx = delay timer value.
@@ -350,7 +359,16 @@ class Interpreter(private val chip : Chip8) {
 
                     //println("v$x = v$x AND v$y")
 
-                    cpu.registers.vX[x] = cpu.registers.vX[x] and cpu.registers.vX[y]
+                    cpu.registers.vX[x] = (cpu.registers.vX[x] and cpu.registers.vX[y])
+                }
+                InstructionType.XOR -> {
+                    // Set Vx = Vx XOR Vy.
+                    val x = inst.matcher.getArgument(instVal, 'x')
+                    val y = inst.matcher.getArgument(instVal, 'y')
+
+                    //println("v$x = v$x XOR v$y")
+
+                    cpu.registers.vX[x] = cpu.registers.vX[x] xor cpu.registers.vX[y]
                 }
                 InstructionType.ADDV -> {
                     // Set Vx = Vx + Vy, set VF = carry.
@@ -361,8 +379,8 @@ class Interpreter(private val chip : Chip8) {
 
                     val result = cpu.registers.vX[x] + cpu.registers.vX[y]
 
-                    cpu.registers.vX[x] = result and 0xFF
-                    cpu.registers.vX[0xF] = if (result > 255) 1 else 0
+                    cpu.registers.vX[x] = result
+                    cpu.registers.vX[0xF] = if (result > 0xFF) 1 else 0
                 }
                 InstructionType.LDBC -> {
                     // Store BCD representation of Vx in memory locations I, I+1, and I+2.
@@ -396,9 +414,6 @@ class Interpreter(private val chip : Chip8) {
                     error("Unhandled instruction: $inst")
                 }
             }
-
-            // Sleep a bit
-            Thread.sleep(1)
         }
     }
 }

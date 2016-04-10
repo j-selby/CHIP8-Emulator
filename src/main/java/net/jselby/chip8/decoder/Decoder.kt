@@ -8,8 +8,8 @@ package net.jselby.chip8.decoder
  */
 fun decodeInstruction(instr : Int): InstructionType? {
     if (instr == 0) {
-        return InstructionType.NULL
-    }
+        return null
+}
 
     var instruction : InstructionType? = null
     var maxMatch = 0
