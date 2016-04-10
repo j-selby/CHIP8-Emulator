@@ -4,6 +4,7 @@ package net.jselby.chip8.decoder
  * Patterns for CHIP-8 instructions.
  */
 enum class InstructionType(val pattern : String, val description : String) {
+    NULL("0000", ""),
     SYS ("0nnn", "Jump to RCA 1802 code at nnn. Unsupported."),
     CLS ("00E0", "Clear the display."),
     RET ("00EE", "Return from a subroutine."),
