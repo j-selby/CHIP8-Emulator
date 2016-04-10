@@ -111,53 +111,12 @@ class Chip8 : Application() {
     }
 
     fun render() {
-        // Copy to our array and render
-        //println("Started render.")
-
-        println("Begin draw")
-
-        canvasRenderer.fill = Color.GREEN
-        canvasRenderer.fill()
-
-        println("Begin draw img")
+        // Render!
         canvasRenderer.drawImage(img, 0.0, 0.0)
-
-        println("End draw img")
-        /*var rendered = 0
-        var request = renderRequests.poll()
-        while(request != null) {
-
-            //println("${request.baseX} : ${request.baseY} : ${request.width} : ${request.height}")
-            for (y in 0..request.height - 1) {
-                val renderY = request.baseY + y
-                for (x in 0..request.width - 1) {
-                    val localIndex = y * request.width + x
-
-                    if (request.pixels[localIndex]) {
-                        val renderX = request.baseX + x
-
-                        val globalIndex = (renderY * 64 + renderX).toInt()
-
-                        pixels[globalIndex] = !pixels[globalIndex]
-
-                        //println("Painting $renderX $renderY with $x and $y base from $localIndex : $globalIndex")
-
-                        canvasRenderer.fill = if (pixels[globalIndex]) Color.WHITE else Color.BLACK
-                        canvasRenderer.fillRect(renderX * screenScale, renderY * screenScale,
-                                screenScale, screenScale)
-                    }
-                }
-            }
-
-            rendered++
-            request = renderRequests.poll()
-        }*/
-
-        //println("Completed render.")
     }
 
-    fun postDrawRequest(request: DrawRequest) {
-        //renderRequests.add(request)
+    fun postDrawRequest(request: DrawRequest) : Boolean {
+        var response = false
 
         // Write to main image
         for (y in 0..request.height - 1) {
@@ -170,13 +129,12 @@ class Chip8 : Application() {
 
                     val globalIndex = (renderY * 64 + renderX).toInt()
 
+                    // XOR the current image
                     pixels[globalIndex] = !pixels[globalIndex]
 
                     //println("Painting $renderX $renderY with $x and $y base from $localIndex : $globalIndex")
 
                     val color = if (pixels[globalIndex]) Color.WHITE else Color.BLACK
-                    //canvasRenderer.fillRect(renderX * screenScale, renderY * screenScale,
-                    //        screenScale, screenScale)
 
                     for (drawX in (renderX * screenScale).toInt() .. ((renderX + 1) * screenScale).toInt()) {
                         for (drawY in (renderY * screenScale).toInt() .. ((renderY + 1) * screenScale).toInt()) {
@@ -185,17 +143,15 @@ class Chip8 : Application() {
                             }
                         }
                     }
+
+                    if (!response && !pixels[globalIndex]) {
+                        response = true
+                    }
                 }
             }
         }
 
-       /* if (!renderRequestSent) {
-            renderRequestSent = true
-            Platform.runLater {
-                render()
-                renderRequestSent = false
-            }
-        }*/
+        return response
     }
 
     fun sendRAM(ram : ByteArray) {
