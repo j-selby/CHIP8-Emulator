@@ -4,6 +4,7 @@ import javafx.animation.AnimationTimer
 import javafx.application.Application
 import javafx.application.Platform
 import javafx.event.EventType
+import javafx.geometry.Insets
 import javafx.scene.Scene
 import javafx.scene.canvas.Canvas
 import javafx.scene.canvas.GraphicsContext
@@ -11,8 +12,11 @@ import javafx.scene.control.*
 import javafx.scene.image.WritableImage
 import javafx.scene.input.KeyCode
 import javafx.scene.input.KeyEvent
+import javafx.scene.layout.BorderPane
+import javafx.scene.layout.FlowPane
 import javafx.scene.layout.VBox
 import javafx.scene.paint.Color
+import javafx.scene.text.Text
 import javafx.stage.FileChooser
 import javafx.stage.Modality
 import javafx.stage.Stage
@@ -52,6 +56,10 @@ class Chip8 : Application() {
     // Debugging
     var sendDebuggingLine = false
     var debuggingLine = 0
+    var oldDebuggingLine = 0
+
+    // Options
+    var renderSpeed = 10
 
     override fun start(stage: Stage) {
         println("CHIP-8 Emulator")
@@ -119,6 +127,44 @@ class Chip8 : Application() {
         disStage.minWidth = 480.0
         disStage.minHeight = 360.0
 
+        // Build options menus
+        // Set render speed...
+        val rSPane = BorderPane()
+
+        val rSTop = FlowPane()
+        rSTop.padding = Insets(10.0, 10.0, 15.0, 10.0)
+        val rSMiddle = FlowPane()
+        rSMiddle.padding = Insets(0.0, 0.0, 0.0, 10.0)
+        val rSBottom = FlowPane()
+        rSBottom.padding = Insets(15.0, 10.0, 10.0, 10.0)
+
+        val title = Text("New render speed?")
+        val slider = Slider(0.0, 10.0, renderSpeed.toDouble())
+        slider.isShowTickLabels = true
+        slider.majorTickUnit = 2.0
+        slider.blockIncrement = 2.0
+        slider.isSnapToTicks = true
+        val setButton = Button("OK")
+
+        rSTop.children.add(title)
+        rSMiddle.children.add(slider)
+        rSBottom.children.add(setButton)
+
+        rSPane.top = rSTop
+        rSPane.center = rSMiddle
+        rSPane.bottom = rSBottom
+
+        val rSStage = Stage()
+        rSStage.scene = Scene(rSPane, 360.0, 120.0)
+        rSStage.initModality(Modality.APPLICATION_MODAL)
+        rSStage.isResizable = false
+        rSStage.title = "Set render speed..."
+
+        setButton.setOnAction {
+            renderSpeed = slider.value.toInt()
+            rSStage.close()
+        }
+
         // Build buttons
         val disMenuItem = MenuItem("Disassembler")
         disMenuItem.setOnAction {
@@ -159,6 +205,21 @@ class Chip8 : Application() {
         }
         fileMenu.items.add(reloadRAM)
 
+        fileMenu.items.add(SeparatorMenuItem())
+
+        val exitButton = MenuItem("Exit")
+        exitButton.setOnAction {
+            isVisible = false
+            Platform.exit()
+        }
+        fileMenu.items.add(exitButton)
+
+        val setRenderSpeed = MenuItem("Set Render Speed...")
+        setRenderSpeed.setOnAction {
+            rSStage.showAndWait()
+        }
+        optionsMenu.items.add(setRenderSpeed)
+
         // Add callbacks
         stage.setOnHidden {
             isVisible = false
@@ -192,15 +253,11 @@ class Chip8 : Application() {
         ))*/
 
         stage.show()
-        disStage.show()
 
         // Start renderer thread
         AnimationCaller(this).start()
 
         println("Ready to begin emulation!")
-
-        interpreter.rom = "roms/Chip-8 Demos/Maze [David Winter, 199x].ch8"
-        startInterpreter()
     }
 
     fun startInterpreter(reset : Boolean = true, loadRom : Boolean = true) {
@@ -226,6 +283,8 @@ class Chip8 : Application() {
             interpreterThread = null
 
             println("Interpreter stopped.")
+
+            sendDebuggingLine = false
         }
     }
 
@@ -258,6 +317,7 @@ class Chip8 : Application() {
 
                     if (pixels.size <= globalIndex || globalIndex < 0) {
                         println("Painting $renderX $renderY with $x and $y base from $localIndex : $globalIndex")
+                        continue;
                     }
                     // XOR the current image
                     pixels[globalIndex] = !pixels[globalIndex]
@@ -268,7 +328,7 @@ class Chip8 : Application() {
 
                     for (drawX in (renderX * screenScale).toInt() .. ((renderX + 1) * screenScale).toInt()) {
                         for (drawY in (renderY * screenScale).toInt() .. ((renderY + 1) * screenScale).toInt()) {
-                            if (drawX < xResolution && drawY < yResolution) {
+                            if (drawX < xResolution && drawY < yResolution && drawX >= 0 && drawY >= 0) {
                                 img.pixelWriter.setColor(drawX, drawY, color)
                             }
                         }
@@ -350,7 +410,8 @@ class Chip8 : Application() {
             Platform.runLater {
                 val start = disPane.text.indexOf("0x${toHex(debuggingLine, 4)}")
                 if (start < 0 || start > disPane.text.length) {
-                    println("WARNING: Invalid instruction for disassembler: $line")
+                    //println("WARNING: Invalid instruction for disassembler: $line")
+                    sendDebuggingLine = false
                     return@runLater
                 }
 
