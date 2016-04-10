@@ -15,7 +15,7 @@ fun toHex(value : Number, length : Int = 4) = String.format("%0" + length + "X",
 fun start(chip: Chip8) {
     // Post logo
     // CHIP
-    /*chip.postDrawRequest(DrawRequest(5, 5, 5, 15,
+    /*chip.postDrawRequest(DrawRequest(5, 5, 15, 5,
             booleanArrayOf(
                     false, true,  true,  false, true, false, true, false, true,  true, true,  false, true, true,  false,
                     true,  false, false, false, true, false, true, false, false, true, false, false, true, false, true,
@@ -26,7 +26,7 @@ fun start(chip: Chip8) {
     ))*/
 
     // Load game data
-    val romIn = FileInputStream("roms/INVADERS")
+    val romIn = FileInputStream("roms/PONG")
     val rom = romIn.readBytes()
     romIn.close()
 
@@ -39,6 +39,34 @@ fun start(chip: Chip8) {
 
     // Copy ROM into memory
     System.arraycopy(rom, 0, cpu.ram, pointer, rom.size)
+
+    // Build fonts!
+    val fonts = intArrayOf(
+            0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
+            0x20, 0x60, 0x20, 0x20, 0x70, // 1
+            0xF0, 0x10, 0xF0, 0x80, 0xF0, // 2
+            0xF0, 0x10, 0xF0, 0x10, 0xF0, // 3
+            0x90, 0x90, 0xF0, 0x10, 0x10, // 4
+            0xF0, 0x80, 0xF0, 0x10, 0xF0, // 5
+            0xF0, 0x80, 0xF0, 0x90, 0xF0, // 6
+            0xF0, 0x10, 0x20, 0x40, 0x40, // 7
+            0xF0, 0x90, 0xF0, 0x90, 0xF0, // 8
+            0xF0, 0x90, 0xF0, 0x10, 0xF0, // 9
+            0xF0, 0x90, 0xF0, 0x90, 0x90, // A
+            0xE0, 0x90, 0xE0, 0x90, 0xE0, // B
+            0xF0, 0x80, 0x80, 0x80, 0xF0, // C
+            0xE0, 0x90, 0x90, 0x90, 0xE0, // D
+            0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
+            0xF0, 0x80, 0xF0, 0x80, 0x80  // F
+    )
+
+    val fontsStart = 0x1FF - fonts.size
+
+    println("Fonts start at $fontsStart")
+
+    for ((index, element) in fonts.withIndex()) {
+        cpu.ram[fontsStart + index] = (element and 0xFF).toByte()
+    }
 
     // Update the UI
     chip.sendRAM(cpu.ram)
@@ -194,23 +222,18 @@ fun start(chip: Chip8) {
                         array[index * 8 + (7 - i)] = ((cpu.ram[byte].toInt() shr i) and 0x1) == 1
                     }
                 }
-                //println(array.toList())
 
                 // Send off the request
-                chip.postDrawRequest(DrawRequest(x, y, 8, size, array))
-                //Thread.sleep(100000)
-
-                // p = 738, i = 754, size = 0, x = 20, y = 0
-                // p = 744, i = 754, size = 0, x = 20, y = 0
+                cpu.registers.vX[0xF] = if (chip.postDrawRequest(DrawRequest(x, y, 8, size, array))) 1 else 0
 
             }
             InstructionType.LDS -> {
-                // Set I = location of sprite for digit Vx.
+                // Set I = location of (font) sprite for digit Vx.
                 val x = cpu.registers.vX[inst.matcher.getArgument(instVal, 'x')]
 
                 println("LDS: $x")
 
-                cpu.registers.i = (x * 5).toShort()
+                cpu.registers.i = (fontsStart + x * 5).toShort()
             }
             InstructionType.ADDB -> {
                 // Set Vx = Vx + kk.
@@ -303,6 +326,6 @@ fun start(chip: Chip8) {
         }
 
         // Sleep a bit
-        //Thread.sleep(1)
+        Thread.sleep(1)
     }
 }
