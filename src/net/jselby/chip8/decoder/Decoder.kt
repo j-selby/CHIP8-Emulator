@@ -7,6 +7,10 @@ package net.jselby.chip8.decoder
  * b2 = second byte in instruction
  */
 fun decodeInstruction(instr : Int): InstructionType? {
+    if (instr == 0) {
+        return InstructionType.NULL
+    }
+
     var instruction : InstructionType? = null
     var maxMatch = 0
 
