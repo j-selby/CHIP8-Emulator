@@ -38,7 +38,10 @@ enum class InstructionType(val pattern : String, val description : String) {
     LDS ("Fx29", "Set I = location of sprite for digit Vx."),
     LDBC("Fx33", "Store BCD representation of Vx in memory locations I, I+1, and I+2."),
     LDMW("Fx55", "Store registers V0 through Vx in memory starting at location I."),
-    LDMR("Fx65", "Read registers V0 through Vx from memory starting at location I.");
+    LDMR("Fx65", "Read registers V0 through Vx from memory starting at location I."),
+
+    // Unofficial commands
+    ASSERT("F999", "Returns from the program prematurely, with a status code in I.");
 
     val matcher : InstructionMatcher
 

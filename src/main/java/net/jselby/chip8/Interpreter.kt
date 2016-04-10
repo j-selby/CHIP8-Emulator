@@ -13,11 +13,16 @@ fun toHex(value : Number, length : Int = 4) = String.format("%0" + length + "X",
  *
  * HW info taken from https://en.wikipedia.org/wiki/CHIP-8 and attached documentation. by cowgod.
  */
-class Interpreter(private val chip : Chip8) {
+class Interpreter(private val chip: Chip8?) {
     var cpu = CPU()
     var rom = ""
+    var byteRom : ByteArray? = null
+    var exitAsserted = false
 
-    fun start(reset : Boolean = true, loadRom : Boolean = true) {
+    fun start(reset : Boolean = true, loadRom : Boolean = true,
+              useByteRom : Boolean = false) {
+        exitAsserted = false
+
         // Build fonts!
         val fonts = intArrayOf(
                 0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
@@ -44,40 +49,42 @@ class Interpreter(private val chip : Chip8) {
         if (reset) {
             cpu = CPU()
 
-            println("Fonts start at $fontsStart")
-
             for ((index, element) in fonts.withIndex()) {
                 cpu.ram[fontsStart + index] = (element and 0xFF).toByte()
             }
 
             // Clear screen
-            chip.clearScreen()
+            chip?.clearScreen()
         } else {
             cpu.registers.pc = 0x200
         }
 
         if (loadRom) {
             // Load game data
-            val romIn = FileInputStream(rom)
-            val rom = romIn.readBytes()
-            romIn.close()
+            val rom : ByteArray
+            if (useByteRom) {
+                rom = byteRom!!
+            } else {
+                val romIn = FileInputStream(this.rom)
+                rom = romIn.readBytes()
+                romIn.close()
+                println("Loaded ROM successfully.")
+
+                println("Starting emulation at 0x${toHex(cpu.registers.pc, 3)}...")
+            }
 
             // Copy ROM into memory
             System.arraycopy(rom, 0, cpu.ram, cpu.registers.pc, rom.size)
-
-            println("Loaded ROM successfully.")
         }
 
         // Update the UI
-        chip.sendRAM(cpu.ram)
+        chip?.sendRAM(cpu.ram)
 
         var sysTime = System.currentTimeMillis()
 
-        println("Starting emulation at 0x${toHex(cpu.registers.pc, 3)}...")
-
         // Main loop
         interpreterLoop@
-        while (chip.isVisible) {
+        while (chip?.isVisible ?: true) {
             // Check timers
             if (System.currentTimeMillis() - sysTime > 1000 / 60) {
                 // We are ready for a re-render!
@@ -86,7 +93,7 @@ class Interpreter(private val chip : Chip8) {
                 }
 
                 if (cpu.registers.soundTimer > 0) {
-                    chip.beep()
+                    chip?.beep()
                     cpu.registers.soundTimer--
                 }
 
@@ -106,7 +113,7 @@ class Interpreter(private val chip : Chip8) {
             //println("${toHex(highInst, 2)} ${toHex(lowInst, 2)} = $inst @ 0x${toHex(cpu.registers.pc, 4)}")
 
             // Send to UI
-            chip.setInstLine(cpu.registers.pc)
+            chip?.setInstLine(cpu.registers.pc)
 
             // Increment CPU status cpu.registers.pc
             cpu.registers.pc += 2
@@ -124,7 +131,7 @@ class Interpreter(private val chip : Chip8) {
                 }
                 InstructionType.CLS -> {
                     // Clear the screen
-                    chip.clearScreen()
+                    chip?.clearScreen()
                 }
                 InstructionType.LD -> {
                     // Set I = nnn.
@@ -211,6 +218,17 @@ class Interpreter(private val chip : Chip8) {
                     cpu.registers.vX[0xF] = if (cpu.registers.vX[x] > cpu.registers.vX[y]) 1 else 0
                     cpu.registers.vX[x] = cpu.registers.vX[x] - cpu.registers.vX[y]
                 }
+
+                InstructionType.SUBN -> {
+                    // Set Vx = Vy - Vx, set VF = NOT borrow.
+                    val x = inst.matcher.getArgument(instVal, 'x')
+                    val y = inst.matcher.getArgument(instVal, 'y')
+
+                    //println("v$y -= v$y, vF = borrow")
+
+                    cpu.registers.vX[0xF] = if (cpu.registers.vX[y] <= cpu.registers.vX[x]) 1 else 0
+                    cpu.registers.vX[x] = (cpu.registers.vX[y] - cpu.registers.vX[x]) and 0x00FF
+                }
                 InstructionType.CALL -> {
                     // Call subroutine at nnn.
                     val newPointer = inst.matcher.getArgument(instVal, 'n')
@@ -233,7 +251,20 @@ class Interpreter(private val chip : Chip8) {
                     val newPointer = inst.matcher.getArgument(instVal, 'n')
 
                     if (newPointer == cpu.registers.pc - 2) {
-                        println("Infinite loop detected. Killing interpreter.")
+                        println("Infinite loop detected (JP). Killing interpreter.")
+                        break@interpreterLoop
+                    }
+
+                    //println("Jumping to 0x${toHex(newPointer, 3)} from 0x${toHex(cpu.registers.pc, 3)}")
+
+                    cpu.registers.pc = newPointer
+                }
+                InstructionType.JPV -> {
+                    // Jump to location nnn + v.
+                    val newPointer = inst.matcher.getArgument(instVal, 'n') + cpu.registers.vX[0]
+
+                    if (newPointer == cpu.registers.pc - 2) {
+                        println("Infinite loop detected (JPV). Killing interpreter.")
                         break@interpreterLoop
                     }
 
@@ -270,10 +301,14 @@ class Interpreter(private val chip : Chip8) {
                     }
 
                     // Send off the request
-                    cpu.registers.vX[0xF] = if (chip.postDrawRequest(DrawRequest(x, y, 8, size, array))) 1 else 0
+                    if (chip != null) {
+                        cpu.registers.vX[0xF] = if (chip.postDrawRequest(DrawRequest(x, y, 8, size, array))) 1 else 0
+                    }
 
                     // Sleep a bit
-                    Thread.sleep(10)
+                    if (chip != null && chip.renderSpeed > 0) {
+                        Thread.sleep(chip.renderSpeed.toLong())
+                    }
                 }
                 InstructionType.LDS -> {
                     // Set I = location of (font) sprite for digit Vx.
@@ -290,14 +325,14 @@ class Interpreter(private val chip : Chip8) {
 
                     //println("v$x += $newVal")
 
-                    cpu.registers.vX[x] += newVal and 0x00FF
+                    cpu.registers.vX[x] = (cpu.registers.vX[x] + newVal) and 0x00FF
                 }
 
                 InstructionType.SKP -> {
                     // Skip next instruction if key with the value of Vx is pressed.
                     val x = inst.matcher.getArgument(instVal, 'x')
 
-                    if (chip.keysPressed[cpu.registers.vX[x]]!!) {
+                    if (chip != null && chip.keysPressed[cpu.registers.vX[x]]!!) {
                         cpu.registers.pc += 2
                     }
                 }
@@ -305,7 +340,7 @@ class Interpreter(private val chip : Chip8) {
                     // Skip next instruction if key with the value of Vx is not pressed.
                     val x = inst.matcher.getArgument(instVal, 'x')
 
-                    if (!chip.keysPressed[cpu.registers.vX[x]]!!) {
+                    if (chip == null || !chip.keysPressed[cpu.registers.vX[x]]!!) {
                         cpu.registers.pc += 2
                     }
                 }
@@ -317,7 +352,7 @@ class Interpreter(private val chip : Chip8) {
                     println("Interpreter stalling on main thread...")
 
                     val future = CompletableFuture<Int>()
-                    chip.future = future
+                    chip?.future = future
                     cpu.registers.vX[x] = future.get()
 
                     println("Interpreter is back!")
@@ -379,7 +414,7 @@ class Interpreter(private val chip : Chip8) {
 
                     val result = cpu.registers.vX[x] + cpu.registers.vX[y]
 
-                    cpu.registers.vX[x] = result
+                    cpu.registers.vX[x] = result and 0x00FF
                     cpu.registers.vX[0xF] = if (result > 0xFF) 1 else 0
                 }
                 InstructionType.LDBC -> {
@@ -399,6 +434,7 @@ class Interpreter(private val chip : Chip8) {
                     for (vVal in 0..x) {
                         cpu.ram[cpu.registers.i + vVal] = cpu.registers.vX[x].toByte()
                     }
+                    cpu.registers.i += x
                 }
                 InstructionType.LDMR -> {
                     // Read registers V0 through Vx from memory starting at location I.
@@ -406,12 +442,19 @@ class Interpreter(private val chip : Chip8) {
 
                     //println("Copying memory from 0x${toHex(cpu.registers.i, 3)} to v0..v$x")
 
+                    //println("Read to $x")
                     for (vVal in 0..x) {
-                        cpu.registers.vX[x] = cpu.ram[cpu.registers.i + vVal].toInt()
+                        cpu.registers.vX[vVal] = cpu.ram[cpu.registers.i + vVal].toInt()
                     }
+                    cpu.registers.i += x
+                }
+                InstructionType.ASSERT -> {
+                    exitAsserted = true
+                    break@interpreterLoop
                 }
                 else -> {
-                    error("Unhandled instruction: $inst")
+                    error("Unhandled instruction: $inst with ${toHex(highInst, 2)}" +
+                            " ${toHex(lowInst, 2)} at PC ${toHex(cpu.registers.pc - 2, 4)}")
                 }
             }
         }
