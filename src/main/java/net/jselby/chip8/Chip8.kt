@@ -17,6 +17,7 @@ import javafx.stage.FileChooser
 import javafx.stage.Modality
 import javafx.stage.Stage
 import net.jselby.chip8.decoder.decodeInstruction
+import java.io.File
 import java.util.*
 import java.util.concurrent.CompletableFuture
 import kotlin.concurrent.thread
@@ -141,6 +142,7 @@ class Chip8 : Application() {
         loadROM.setOnAction {
             val fileChooser = FileChooser()
             fileChooser.title = "Select CHIP-8 ROM"
+            fileChooser.initialDirectory = File(".")
             val file = fileChooser.showOpenDialog(stage)
 
             if (file != null && file.exists() && file.canRead()) {
@@ -179,7 +181,7 @@ class Chip8 : Application() {
         })
 
         // Build dummy logo
-        postDrawRequest(DrawRequest(5, 5, 15, 5,
+        /*postDrawRequest(DrawRequest(5, 5, 15, 5,
                 booleanArrayOf(
                         false, true,  true,  false, true, false, true, false, true,  true, true,  false, true, true,  false,
                         true,  false, false, false, true, false, true, false, false, true, false, false, true, false, true,
@@ -187,18 +189,18 @@ class Chip8 : Application() {
                         true,  false, false, false, true, false, true, false, false, true, false, false, true, false, false,
                         false, true,  true,  false, true, false, true, false, true,  true, true , false, true, false, false
                 )
-        ))
+        ))*/
 
         stage.show()
+        disStage.show()
 
         // Start renderer thread
         AnimationCaller(this).start()
 
         println("Ready to begin emulation!")
 
-        interpreter.rom = "roms/PONG2"
+        interpreter.rom = "roms/Chip-8 Demos/Maze [David Winter, 199x].ch8"
         startInterpreter()
-
     }
 
     fun startInterpreter(reset : Boolean = true, loadRom : Boolean = true) {
@@ -254,7 +256,7 @@ class Chip8 : Application() {
 
                     val globalIndex = (renderY * 64 + renderX).toInt()
 
-                    if (pixels.size <= globalIndex) {
+                    if (pixels.size <= globalIndex || globalIndex < 0) {
                         println("Painting $renderX $renderY with $x and $y base from $localIndex : $globalIndex")
                     }
                     // XOR the current image
@@ -304,7 +306,7 @@ class Chip8 : Application() {
                 val instVal = (highInst shl 8) + lowInst
                 val inst = decodeInstruction(instVal)
 
-                line += "0x${toHex(i)}  ${inst?.name}"
+                line += "0x${toHex(i)}  ${inst?.name ?: "${toHex(highInst, 2)} ${toHex(lowInst, 2)}"}"
                 line += " ".repeat(13 - line.length)
 
                 // Dissect parameters
@@ -324,7 +326,13 @@ class Chip8 : Application() {
                     }
                 }
 
-                line += " ".repeat(30 - line.length) + "; ${inst?.description}\n"
+                line += " ".repeat(30 - line.length)
+
+                if (inst != null) {
+                    line += "; ${inst.description}\n"
+                } else {
+                    line += "\n"
+                }
 
                 contents += line
             }
