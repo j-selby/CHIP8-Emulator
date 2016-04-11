@@ -1,4 +1,4 @@
-package net.jselby.chip8
+package net.jselby.chip8.frontend
 
 import com.sun.javafx.tk.Toolkit
 import javafx.animation.AnimationTimer
@@ -30,9 +30,9 @@ import java.util.concurrent.CompletableFuture
 import kotlin.concurrent.thread
 
 /**
- * A Chip8 emulator, written using Kotlin/JavaFX.
+ * A JavaFX frontend for the Chip-8 interpreter/emulator.
  */
-class Chip8 : Application(), FrontendProvider {
+class JavaFXFrontend : Application(), FrontendProvider {
 
     val screenScale = 16.0//12.0
 
@@ -477,16 +477,9 @@ class Chip8 : Application(), FrontendProvider {
     override fun postKeyPressedFuture(future: CompletableFuture<Int>) {
         this.future = future
     }
-
-    companion object {
-        @JvmStatic
-        fun main(args: Array<String>) {
-            Application.launch(Chip8::class.java, *args)
-        }
-    }
 }
 
-class AnimationCaller(val chip8: Chip8) : AnimationTimer() {
+class AnimationCaller(val chip8: JavaFXFrontend) : AnimationTimer() {
     override fun handle(now: Long) {
         chip8.render()
     }
