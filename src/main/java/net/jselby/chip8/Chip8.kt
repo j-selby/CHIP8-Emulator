@@ -54,7 +54,6 @@ class Chip8 : Application() {
     var future : CompletableFuture<Int>? = null
 
     // Debugging
-    var sendDebuggingLine = false
     var debuggingLine = 0
     var oldDebuggingLine = 0
 
@@ -283,15 +282,43 @@ class Chip8 : Application() {
             interpreterThread = null
 
             println("Interpreter stopped.")
-
-            sendDebuggingLine = false
         }
     }
 
     fun render() {
         // Render!
         canvasRenderer.drawImage(img, 0.0, 0.0)
-        //setInstLine(line)
+
+        // Update CPU timers
+        val myInterpreter = interpreter
+        if (interpreterThread != null) {
+            if (myInterpreter.cpu.registers.delayTimer > 0) {
+                myInterpreter.cpu.registers.delayTimer--
+            }
+
+            if (myInterpreter.cpu.registers.soundTimer > 0) {
+                beep()
+                myInterpreter.cpu.registers.soundTimer--
+            }
+        }
+
+        val curDebuggingLine = debuggingLine
+        if (curDebuggingLine != oldDebuggingLine) {
+            val start = disPane.text.indexOf("0x${toHex(curDebuggingLine, 4)}")
+            if (start < 0 || start > disPane.text.length) {
+                //println("WARNING: Invalid instruction for disassembler: $line")
+                return
+            }
+
+            val text = disPane.text.substring(start..disPane.text.indexOf('\n', start)).split(" ")[0]
+
+            disPane.selectRange(start, start + text.length)
+
+            disPane.scrollLeft = 0.0
+
+            oldDebuggingLine = curDebuggingLine
+        }
+
     }
 
     fun postDrawRequest(request: DrawRequest) : Boolean {
@@ -404,26 +431,6 @@ class Chip8 : Application() {
 
     fun setInstLine(line : Int) {
         debuggingLine = line
-
-        if (!sendDebuggingLine) {
-            sendDebuggingLine = true
-            Platform.runLater {
-                val start = disPane.text.indexOf("0x${toHex(debuggingLine, 4)}")
-                if (start < 0 || start > disPane.text.length) {
-                    //println("WARNING: Invalid instruction for disassembler: $line")
-                    sendDebuggingLine = false
-                    return@runLater
-                }
-
-                val text = disPane.text.substring(start..disPane.text.indexOf('\n', start)).split(" ")[0]
-
-                disPane.selectRange(start, start + text.length)
-
-                disPane.scrollLeft = 0.0
-
-                sendDebuggingLine = false
-            }
-        }
     }
 
     fun beep() {

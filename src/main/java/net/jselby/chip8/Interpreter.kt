@@ -86,8 +86,11 @@ class Interpreter(private val chip: Chip8?) {
         interpreterLoop@
         while (chip?.isVisible ?: true) {
             // Check timers
-            if (System.currentTimeMillis() - sysTime > 1000 / 60) {
+            /*val diff = System.currentTimeMillis() - sysTime
+            if (diff > 1000.0 / 60.0) {
                 // We are ready for a re-render!
+                val leftOvers = diff % (1000.0 / 60.0)
+
                 if (cpu.registers.delayTimer > 0) {
                     cpu.registers.delayTimer--
                 }
@@ -97,8 +100,8 @@ class Interpreter(private val chip: Chip8?) {
                     cpu.registers.soundTimer--
                 }
 
-                sysTime = System.currentTimeMillis()
-            }
+                sysTime = System.currentTimeMillis() + leftOvers.toLong()
+            }*/
 
             // On a CHIP-8, the first 4 bits define a single hex digit corresponding to a
             //  general area of operation.
