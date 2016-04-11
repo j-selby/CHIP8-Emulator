@@ -202,6 +202,7 @@ class JavaFXFrontend : Application(), FrontendProvider {
                 startInterpreter()
             }
         }
+        loadROM.isDisable = true
         fileMenu.items.add(loadROM)
 
         reloadRAM = MenuItem("Reload ROM")
@@ -266,6 +267,8 @@ class JavaFXFrontend : Application(), FrontendProvider {
 
         // Render once
         render()
+
+        loadROM.isDisable = false
 
         println("Ready to begin emulation!")
     }
