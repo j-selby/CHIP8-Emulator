@@ -1,4 +1,4 @@
-package net.jselby.chip8.decoder
+package net.jselby.chip8.interpreter.decoder
 
 /**
  * Decodes a raw CHIP8 instruction into a object representation.

@@ -1,7 +1,8 @@
-package net.jselby.chip8
+package net.jselby.chip8.interpreter
 
-import net.jselby.chip8.decoder.InstructionType
-import net.jselby.chip8.decoder.decodeInstruction
+import net.jselby.chip8.interpreter.decoder.InstructionType
+import net.jselby.chip8.interpreter.decoder.decodeInstruction
+import net.jselby.chip8.ui.FrontendProvider
 import java.io.FileInputStream
 import java.util.concurrent.CompletableFuture
 
@@ -13,7 +14,7 @@ fun toHex(value : Number, length : Int = 4) = String.format("%0" + length + "X",
  *
  * HW info taken from https://en.wikipedia.org/wiki/CHIP-8 and attached documentation. by cowgod.
  */
-class Interpreter(private val chip: Chip8?) {
+class Interpreter(private val frontend: FrontendProvider) {
     var cpu = CPU()
     var rom = ""
     var byteRom : ByteArray? = null
@@ -54,7 +55,7 @@ class Interpreter(private val chip: Chip8?) {
             }
 
             // Clear screen
-            chip?.clearScreen()
+            frontend.clearScreen()
         } else {
             cpu.registers.pc = 0x200
         }
@@ -78,28 +79,21 @@ class Interpreter(private val chip: Chip8?) {
         }
 
         // Update the UI
-        chip?.sendRAM(cpu.ram)
+        frontend.beforeStartCallback()
 
         var sysTime = System.currentTimeMillis()
 
         // Main loop
         interpreterLoop@
-        while (chip?.isVisible ?: true) {
+        while (frontend.doContinue()) {
             // Check timers
-            if (chip == null) { // Main class normally does this for us
+            if (!frontend.hasTimerUpdater()) { // Main class normally does this for us
                 val diff = System.currentTimeMillis() - sysTime
                 if (diff > 1000.0 / 60.0) {
                     // We are ready for a re-render!
                     val leftOvers = diff % (1000.0 / 60.0)
 
-                    if (cpu.registers.delayTimer > 0) {
-                        cpu.registers.delayTimer--
-                    }
-
-                    if (cpu.registers.soundTimer > 0) {
-                        chip?.beep()
-                        cpu.registers.soundTimer--
-                    }
+                    updateTimers()
 
                     sysTime = System.currentTimeMillis() + leftOvers.toLong()
                 }
@@ -118,7 +112,7 @@ class Interpreter(private val chip: Chip8?) {
             //println("${toHex(highInst, 2)} ${toHex(lowInst, 2)} = $inst @ 0x${toHex(cpu.registers.pc, 4)}")
 
             // Send to UI
-            chip?.setInstLine(cpu.registers.pc)
+            frontend.setDebuggingLine(cpu.registers.pc)
 
             // Increment CPU status cpu.registers.pc
             cpu.registers.pc += 2
@@ -136,7 +130,7 @@ class Interpreter(private val chip: Chip8?) {
                 }
                 InstructionType.CLS -> {
                     // Clear the screen
-                    chip?.clearScreen()
+                    frontend.clearScreen()
                 }
                 InstructionType.LD -> {
                     // Set I = nnn.
@@ -306,14 +300,7 @@ class Interpreter(private val chip: Chip8?) {
                     }
 
                     // Send off the request
-                    if (chip != null) {
-                        cpu.registers.vX[0xF] = if (chip.postDrawRequest(DrawRequest(x, y, 8, size, array))) 1 else 0
-                    }
-
-                    // Sleep a bit
-                    if (chip != null && chip.renderSpeed > 0) {
-                        Thread.sleep(chip.renderSpeed.toLong())
-                    }
+                    cpu.registers.vX[0xF] = if (frontend.postDrawRequest(DrawRequest(x, y, 8, size, array))) 1 else 0
                 }
                 InstructionType.LDS -> {
                     // Set I = location of (font) sprite for digit Vx.
@@ -337,7 +324,7 @@ class Interpreter(private val chip: Chip8?) {
                     // Skip next instruction if key with the value of Vx is pressed.
                     val x = inst.matcher.getArgument(instVal, 'x')
 
-                    if (chip != null && chip.keysPressed[cpu.registers.vX[x]]!!) {
+                    if (frontend.isKeyPressed(cpu.registers.vX[x])) {
                         cpu.registers.pc += 2
                     }
                 }
@@ -345,7 +332,7 @@ class Interpreter(private val chip: Chip8?) {
                     // Skip next instruction if key with the value of Vx is not pressed.
                     val x = inst.matcher.getArgument(instVal, 'x')
 
-                    if (chip == null || !chip.keysPressed[cpu.registers.vX[x]]!!) {
+                    if (!frontend.isKeyPressed(cpu.registers.vX[x])) {
                         cpu.registers.pc += 2
                     }
                 }
@@ -357,7 +344,7 @@ class Interpreter(private val chip: Chip8?) {
                     println("Interpreter stalling on main thread...")
 
                     val future = CompletableFuture<Int>()
-                    chip?.future = future
+                    frontend.postKeyPressedFuture(future)
                     cpu.registers.vX[x] = future.get()
 
                     println("Interpreter is back!")
@@ -471,6 +458,20 @@ class Interpreter(private val chip: Chip8?) {
                             " ${toHex(lowInst, 2)} at PC ${toHex(cpu.registers.pc - 2, 4)}")
                 }
             }
+        }
+    }
+
+    /**
+     * Decrements the CPU timers.
+     */
+    fun updateTimers() {
+        if (cpu.registers.delayTimer > 0) {
+            cpu.registers.delayTimer--
+        }
+
+        if (cpu.registers.soundTimer > 0) {
+            frontend.beep()
+            cpu.registers.soundTimer--
         }
     }
 }

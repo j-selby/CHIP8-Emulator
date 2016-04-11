@@ -19,7 +19,11 @@ import javafx.scene.text.Text
 import javafx.stage.FileChooser
 import javafx.stage.Modality
 import javafx.stage.Stage
-import net.jselby.chip8.decoder.decodeInstruction
+import net.jselby.chip8.interpreter.DrawRequest
+import net.jselby.chip8.interpreter.Interpreter
+import net.jselby.chip8.interpreter.decoder.decodeInstruction
+import net.jselby.chip8.interpreter.toHex
+import net.jselby.chip8.ui.FrontendProvider
 import java.io.File
 import java.util.*
 import java.util.concurrent.CompletableFuture
@@ -28,7 +32,8 @@ import kotlin.concurrent.thread
 /**
  * A Chip8 emulator, written using Kotlin/JavaFX.
  */
-class Chip8 : Application() {
+class Chip8 : Application(), FrontendProvider {
+
     val screenScale = 16.0//12.0
 
     // Game screen
@@ -54,7 +59,7 @@ class Chip8 : Application() {
     var future : CompletableFuture<Int>? = null
 
     // Debugging
-    var debuggingLine = 0
+    var curDebuggingLine = 0
     var oldDebuggingLine = 0
 
     // Options
@@ -245,11 +250,11 @@ class Chip8 : Application() {
         // Build dummy logo
         postDrawRequest(DrawRequest(5, 5, 23, 5,
                 booleanArrayOf(
-                        false, true,  true,  false, true, false, true, false, true,  true, true,  false, true, true,  false, false, false, false, false, false, false, true,  false,
-                        true,  false, false, false, true, false, true, false, false, true, false, false, true, false, true,  false, false, false, false, false, true,  false, true,
-                        true,  false, false, false, true, true,  true, false, false, true, false, false, true, true,  false, false, true,  true,  true,  false, false, true,  false,
-                        true,  false, false, false, true, false, true, false, false, true, false, false, true, false, false, false, false, false, false, false, true,  false, true,
-                        false, true,  true,  false, true, false, true, false, true,  true, true,  false, true, false, false, false, false, false, false, false, false, true,  false
+                        false, true, true, false, true, false, true, false, true, true, true, false, true, true, false, false, false, false, false, false, false, true, false,
+                        true, false, false, false, true, false, true, false, false, true, false, false, true, false, true, false, false, false, false, false, true, false, true,
+                        true, false, false, false, true, true, true, false, false, true, false, false, true, true, false, false, true, true, true, false, false, true, false,
+                        true, false, false, false, true, false, true, false, false, true, false, false, true, false, false, false, false, false, false, false, true, false, true,
+                        false, true, true, false, true, false, true, false, true, true, true, false, true, false, false, false, false, false, false, false, false, true, false
                 )
         ))
 
@@ -333,7 +338,7 @@ class Chip8 : Application() {
             }
         }
 
-        val curDebuggingLine = debuggingLine
+        val curDebuggingLine = curDebuggingLine
         if (curDebuggingLine != oldDebuggingLine) {
             val start = disPane.text.indexOf("0x${toHex(curDebuggingLine, 4)}")
             if (start < 0 || start > disPane.text.length) {
@@ -352,7 +357,7 @@ class Chip8 : Application() {
 
     }
 
-    fun postDrawRequest(request: DrawRequest) : Boolean {
+    override fun postDrawRequest(request: DrawRequest) : Boolean {
         var response = false
 
         // Write to main image
@@ -389,10 +394,12 @@ class Chip8 : Application() {
             }
         }
 
+        Thread.sleep(renderSpeed.toLong())
+
         return response
     }
 
-    fun clearScreen() {
+    override fun clearScreen() {
         pixels.fill(false)
         Platform.runLater {
             canvasRenderer.fill = Color.BLACK
@@ -401,7 +408,9 @@ class Chip8 : Application() {
         }
     }
 
-    fun sendRAM(ram : ByteArray) {
+    override fun beforeStartCallback() {
+        val ram = interpreter.cpu.ram
+
         Platform.runLater {
             var contents = ""
 
@@ -449,14 +458,24 @@ class Chip8 : Application() {
         }
     }
 
-    fun setInstLine(line : Int) {
-        debuggingLine = line
+    override fun setDebuggingLine(line : Int) {
+        curDebuggingLine = line
     }
 
-    fun beep() {
+    override fun beep() {
         Platform.runLater {
             //Toolkit.getDefaultToolkit().beep();
         }
+    }
+
+    override fun hasTimerUpdater() = true
+
+    override fun doContinue() = isVisible
+
+    override fun isKeyPressed(key: Int) = keysPressed[key]!!
+
+    override fun postKeyPressedFuture(future: CompletableFuture<Int>) {
+        this.future = future
     }
 
     companion object {
