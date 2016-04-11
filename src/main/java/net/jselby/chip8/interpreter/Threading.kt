@@ -1,4 +1,4 @@
-package net.jselby.chip8
+package net.jselby.chip8.interpreter
 
 /**
  * Various objects sent between threads

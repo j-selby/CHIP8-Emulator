@@ -1,5 +1,6 @@
 package net.jselby.chip8
 
+import net.jselby.chip8.interpreter.Interpreter
 import org.testng.Assert
 import org.testng.annotations.Test
 
@@ -347,7 +348,8 @@ class InterpreterTest {
         rom.forEachIndexed { index, value -> array[index] = value.toByte() }
 
         // Build interpreter
-        val interpreter = Interpreter(null)
+        val frontend = NullFrontend()
+        val interpreter = Interpreter(frontend)
         interpreter.byteRom = array
 
         return interpreter

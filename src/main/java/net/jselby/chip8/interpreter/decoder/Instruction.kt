@@ -1,4 +1,4 @@
-package net.jselby.chip8.decoder
+package net.jselby.chip8.interpreter.decoder
 
 /**
  * Patterns for CHIP-8 instructions.
