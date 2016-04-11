@@ -80,9 +80,31 @@ class Interpreter(private val chip: Chip8?) {
         // Update the UI
         chip?.sendRAM(cpu.ram)
 
+        var sysTime = System.currentTimeMillis()
+
         // Main loop
         interpreterLoop@
         while (chip?.isVisible ?: true) {
+            // Check timers
+            if (chip == null) { // Main class normally does this for us
+                val diff = System.currentTimeMillis() - sysTime
+                if (diff > 1000.0 / 60.0) {
+                    // We are ready for a re-render!
+                    val leftOvers = diff % (1000.0 / 60.0)
+
+                    if (cpu.registers.delayTimer > 0) {
+                        cpu.registers.delayTimer--
+                    }
+
+                    if (cpu.registers.soundTimer > 0) {
+                        chip?.beep()
+                        cpu.registers.soundTimer--
+                    }
+
+                    sysTime = System.currentTimeMillis() + leftOvers.toLong()
+                }
+            }
+
             // On a CHIP-8, the first 4 bits define a single hex digit corresponding to a
             //  general area of operation.
             // The remainder of the instruction is the arguments for the instruction

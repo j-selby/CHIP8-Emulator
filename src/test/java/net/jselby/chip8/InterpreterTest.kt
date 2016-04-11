@@ -202,7 +202,6 @@ class InterpreterTest {
         Assert.assertEquals(interpreter.cpu.registers.vX[2], 5 + 2)
     }
 
-
     @Test
     fun testADDB_Overflow() {
         // Set Vx = Vx + kk.
@@ -215,6 +214,54 @@ class InterpreterTest {
         )
         assertInterpreterAssert(interpreter, 1)
         Assert.assertEquals(interpreter.cpu.registers.vX[2], (5 + 255) and 0xFF)
+    }
+
+    @Test
+    fun testOR() {
+        // Set Vx = Vx OR Vy.
+        val interpreter = buildByteInterpreter(
+                0x62, 0x05, // Write 5 to v2
+                0x63, 0x07, // Write 7 to v3
+
+                0x82, 0x31, // v1 = v1 OR v2
+
+                0xA0, 0x01, // Write 1 (SUCCESS) to I
+                0xF9, 0x99  // Exit with I
+        )
+        assertInterpreterAssert(interpreter, 1)
+        Assert.assertEquals(interpreter.cpu.registers.vX[2], 5 or 7)
+    }
+
+    @Test
+    fun testAND() {
+        // Set Vx = Vx AND Vy.
+        val interpreter = buildByteInterpreter(
+                0x62, 0x05, // Write 5 to v2
+                0x63, 0x07, // Write 7 to v3
+
+                0x82, 0x32, // v1 = v1 AND v2
+
+                0xA0, 0x01, // Write 1 (SUCCESS) to I
+                0xF9, 0x99  // Exit with I
+        )
+        assertInterpreterAssert(interpreter, 1)
+        Assert.assertEquals(interpreter.cpu.registers.vX[2], 5 and 7)
+    }
+
+    @Test
+    fun testXOR() {
+        // Set Vx = Vx AND Vy.
+        val interpreter = buildByteInterpreter(
+                0x62, 0x05, // Write 5 to v2
+                0x63, 0x07, // Write 7 to v3
+
+                0x82, 0x32, // v1 = v1 XOR v2
+
+                0xA0, 0x01, // Write 1 (SUCCESS) to I
+                0xF9, 0x99  // Exit with I
+        )
+        assertInterpreterAssert(interpreter, 1)
+        Assert.assertEquals(interpreter.cpu.registers.vX[2], 5 xor 7)
     }
 
     /**
