@@ -221,7 +221,7 @@ class Interpreter(private val chip: Chip8?) {
                     //println("v$x -= $vy, vF = borrow")
 
                     cpu.registers.vX[0xF] = if (cpu.registers.vX[x] > cpu.registers.vX[y]) 1 else 0
-                    cpu.registers.vX[x] = cpu.registers.vX[x] - cpu.registers.vX[y]
+                    cpu.registers.vX[x] = (cpu.registers.vX[x] - cpu.registers.vX[y]) and 0xFF
                 }
 
                 InstructionType.SUBN -> {
