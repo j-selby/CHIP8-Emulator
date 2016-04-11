@@ -14,7 +14,6 @@ import javafx.scene.input.KeyCode
 import javafx.scene.input.KeyEvent
 import javafx.scene.layout.BorderPane
 import javafx.scene.layout.FlowPane
-import javafx.scene.layout.VBox
 import javafx.scene.paint.Color
 import javafx.scene.text.Text
 import javafx.stage.FileChooser
@@ -30,7 +29,7 @@ import kotlin.concurrent.thread
  * A Chip8 emulator, written using Kotlin/JavaFX.
  */
 class Chip8 : Application() {
-    val screenScale = 8.0
+    val screenScale = 12.0
 
     // Game screen
     private val xResolution = 64.0 * screenScale
@@ -86,7 +85,6 @@ class Chip8 : Application() {
             keysPressed.put(value, false)
         }
 
-
         stage.title = "CHIPy"
         stage.isResizable = false
 
@@ -100,13 +98,16 @@ class Chip8 : Application() {
 
         // Build renderer
         val canvas = Canvas(xResolution, yResolution)
+
         canvasRenderer = canvas.graphicsContext2D
         canvasRenderer.fill = Color.BLACK
         canvasRenderer.fillRect(0.0, 0.0, xResolution, yResolution)
 
         // Build screen
-        val root = VBox()
-        root.children.addAll(menuBar, canvas)
+        val root = BorderPane()
+        root.top = menuBar
+        root.center = canvas
+        //root.children.addAll(menuBar, canvas)
 
         //stage.width = xResolution
         //println(menuBar.height)
@@ -137,7 +138,7 @@ class Chip8 : Application() {
         val rSBottom = FlowPane()
         rSBottom.padding = Insets(15.0, 10.0, 10.0, 10.0)
 
-        val title = Text("New render speed?")
+        val title = Text("New render speed? (in ms, 0 disables delay)")
         val slider = Slider(0.0, 10.0, renderSpeed.toDouble())
         slider.isShowTickLabels = true
         slider.majorTickUnit = 2.0
@@ -252,6 +253,10 @@ class Chip8 : Application() {
         ))*/
 
         stage.show()
+
+        // Fix weird border in JavaFX
+        stage.width -= 10
+        stage.height -= 10
 
         // Start renderer thread
         AnimationCaller(this).start()
