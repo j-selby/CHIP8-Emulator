@@ -1,5 +1,6 @@
 package net.jselby.chip8
 
+import com.sun.javafx.tk.Toolkit
 import javafx.animation.AnimationTimer
 import javafx.application.Application
 import javafx.application.Platform
@@ -9,7 +10,6 @@ import javafx.scene.Scene
 import javafx.scene.canvas.Canvas
 import javafx.scene.canvas.GraphicsContext
 import javafx.scene.control.*
-import javafx.scene.image.WritableImage
 import javafx.scene.input.KeyCode
 import javafx.scene.input.KeyEvent
 import javafx.scene.layout.BorderPane
@@ -29,19 +29,20 @@ import kotlin.concurrent.thread
  * A Chip8 emulator, written using Kotlin/JavaFX.
  */
 class Chip8 : Application() {
-    val screenScale = 12.0
+    val screenScale = 16.0//12.0
 
     // Game screen
-    private val xResolution = 64.0 * screenScale
-    private val yResolution = 32.0 * screenScale
+    private val xResolution = 64.0 //* screenScale
+    private val yResolution = 32.0 //* screenScale
 
     private val pixels = BooleanArray(64 * 32)
-    private var img = WritableImage(xResolution.toInt(), yResolution.toInt())
+    private val uiThreadPixels = BooleanArray(64 * 32)
 
     val interpreter = Interpreter(this)
     private var interpreterThread : Thread? = null
 
     // JavaFX
+    private lateinit var canvas: Canvas
     private lateinit var canvasRenderer: GraphicsContext
     private lateinit var disPane: TextArea
     var isVisible = true
@@ -58,6 +59,11 @@ class Chip8 : Application() {
 
     // Options
     var renderSpeed = 10
+    var animationCaller = AnimationCaller(this)
+
+    // Menu items dependent on ROM
+    private lateinit var keepRAMROM: MenuItem
+    private lateinit var reloadRAM: MenuItem
 
     override fun start(stage: Stage) {
         println("CHIP-8 Emulator")
@@ -86,7 +92,7 @@ class Chip8 : Application() {
         }
 
         stage.title = "CHIPy"
-        stage.isResizable = false
+        stage.isResizable = false // AnimationTimer & draw calls + menubar seem to create lag when this is on. Sorry!
 
         // Build menubar
         val fileMenu    = Menu("File")
@@ -97,21 +103,14 @@ class Chip8 : Application() {
         menuBar.menus.addAll(fileMenu, optionsMenu, helpMenu)
 
         // Build renderer
-        val canvas = Canvas(xResolution, yResolution)
+        canvas = Canvas(xResolution * screenScale, yResolution * screenScale)
 
         canvasRenderer = canvas.graphicsContext2D
-        canvasRenderer.fill = Color.BLACK
-        canvasRenderer.fillRect(0.0, 0.0, xResolution, yResolution)
 
         // Build screen
         val root = BorderPane()
         root.top = menuBar
         root.center = canvas
-        //root.children.addAll(menuBar, canvas)
-
-        //stage.width = xResolution
-        //println(menuBar.height)
-        //stage.height = yResolution + menuBar.height
 
         stage.scene = Scene(root)
 
@@ -172,10 +171,11 @@ class Chip8 : Application() {
         }
         helpMenu.items.add(disMenuItem)
 
-        val keepRAMROM = MenuItem("Reset CPU (keep RAM+ROM)")
+        keepRAMROM = MenuItem("Reset CPU (keep RAM+ROM)")
         keepRAMROM.setOnAction {
             startInterpreter(false, false)
         }
+        keepRAMROM.isDisable = true
         helpMenu.items.add(keepRAMROM)
 
         val resetScreen = MenuItem("Reset Screen")
@@ -199,7 +199,8 @@ class Chip8 : Application() {
         }
         fileMenu.items.add(loadROM)
 
-        val reloadRAM = MenuItem("Reload ROM")
+        reloadRAM = MenuItem("Reload ROM")
+        reloadRAM.isDisable = true
         reloadRAM.setOnAction {
             startInterpreter(true, true)
         }
@@ -242,15 +243,15 @@ class Chip8 : Application() {
         })
 
         // Build dummy logo
-        /*postDrawRequest(DrawRequest(5, 5, 15, 5,
+        postDrawRequest(DrawRequest(5, 5, 23, 5,
                 booleanArrayOf(
-                        false, true,  true,  false, true, false, true, false, true,  true, true,  false, true, true,  false,
-                        true,  false, false, false, true, false, true, false, false, true, false, false, true, false, true,
-                        true,  false, false, false, true, true,  true, false, false, true, false, false, true, true,  false,
-                        true,  false, false, false, true, false, true, false, false, true, false, false, true, false, false,
-                        false, true,  true,  false, true, false, true, false, true,  true, true , false, true, false, false
+                        false, true,  true,  false, true, false, true, false, true,  true, true,  false, true, true,  false, false, false, false, false, false, false, true,  false,
+                        true,  false, false, false, true, false, true, false, false, true, false, false, true, false, true,  false, false, false, false, false, true,  false, true,
+                        true,  false, false, false, true, true,  true, false, false, true, false, false, true, true,  false, false, true,  true,  true,  false, false, true,  false,
+                        true,  false, false, false, true, false, true, false, false, true, false, false, true, false, false, false, false, false, false, false, true,  false, true,
+                        false, true,  true,  false, true, false, true, false, true,  true, true,  false, true, false, false, false, false, false, false, false, false, true,  false
                 )
-        ))*/
+        ))
 
         stage.show()
 
@@ -258,8 +259,8 @@ class Chip8 : Application() {
         stage.width -= 10
         stage.height -= 10
 
-        // Start renderer thread
-        AnimationCaller(this).start()
+        // Render once
+        render()
 
         println("Ready to begin emulation!")
     }
@@ -275,6 +276,11 @@ class Chip8 : Application() {
         }
 
         interpreterThread!!.name = "CHIP-8 Emulation Thread"
+
+        // Update menu
+        reloadRAM.isDisable = false
+        keepRAMROM.isDisable = false
+        animationCaller.start()
     }
 
     fun stopInterpreter() {
@@ -287,12 +293,32 @@ class Chip8 : Application() {
             interpreterThread = null
 
             println("Interpreter stopped.")
+
+            // Update menu
+            reloadRAM.isDisable = true
+            keepRAMROM.isDisable = true
+            animationCaller.stop()
         }
     }
 
     fun render() {
         // Render!
-        canvasRenderer.drawImage(img, 0.0, 0.0)
+        System.arraycopy(pixels, 0, uiThreadPixels, 0, uiThreadPixels.size)
+
+        Toolkit.getToolkit().checkFxUserThread()
+
+        val xScale = canvas.width / xResolution
+        val yScale = canvas.height / yResolution
+        canvasRenderer.scale(xScale, yScale)
+        for (y in 0 .. yResolution.toInt() - 1) {
+            for (x in 0 .. xResolution.toInt() - 1) {
+                val localIndex = y * 64 + x
+                canvasRenderer.fill = if (uiThreadPixels[localIndex]) Color.WHITE else Color.BLACK
+                canvasRenderer.fillRect(x.toDouble(), y.toDouble(), 1.0, 1.0)
+            }
+        }
+        canvasRenderer.scale(1 / xScale, 1 / yScale)
+
 
         // Update CPU timers
         val myInterpreter = interpreter
@@ -356,16 +382,6 @@ class Chip8 : Application() {
 
                     //println("Painting $renderX $renderY with $x and $y base from $localIndex : $globalIndex")
 
-                    val color = if (pixels[globalIndex]) Color.WHITE else Color.BLACK
-
-                    for (drawX in (renderX * screenScale).toInt() .. ((renderX + 1) * screenScale).toInt()) {
-                        for (drawY in (renderY * screenScale).toInt() .. ((renderY + 1) * screenScale).toInt()) {
-                            if (drawX < xResolution && drawY < yResolution && drawX >= 0 && drawY >= 0) {
-                                img.pixelWriter.setColor(drawX, drawY, color)
-                            }
-                        }
-                    }
-
                     if (!response && !pixels[globalIndex]) {
                         response = true
                     }
@@ -377,7 +393,6 @@ class Chip8 : Application() {
     }
 
     fun clearScreen() {
-        img = WritableImage(xResolution.toInt(), yResolution.toInt())
         pixels.fill(false)
         Platform.runLater {
             canvasRenderer.fill = Color.BLACK
