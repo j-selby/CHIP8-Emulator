@@ -370,6 +370,15 @@ class Interpreter(private val chip: Chip8?) {
 
                     cpu.registers.vX[x] = cpu.registers.delayTimer
                 }
+                InstructionType.OR -> {
+                    // Set Vx = Vx OR Vy.
+                    val x = inst.matcher.getArgument(instVal, 'x')
+                    val y = inst.matcher.getArgument(instVal, 'y')
+
+                    //println("v$x = v$x OR v$y")
+
+                    cpu.registers.vX[x] = cpu.registers.vX[x] or cpu.registers.vX[y]
+                }
                 InstructionType.AND -> {
                     // Set Vx = Vx AND Vy.
                     val x = inst.matcher.getArgument(instVal, 'x')
